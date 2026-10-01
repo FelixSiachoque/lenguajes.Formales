@@ -1,0 +1,675 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BIP · Editor y compilador</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --fondo: #E6ECF1;
+    --superficie: #FFFFFF;
+    --superficie-2: #F4F7FA;
+    --borde: #CED8E1;
+    --tinta: #17212B;
+    --tinta-suave: #5A6876;
+    --cobalto: #2E54D6;
+    --cobalto-suave: #E3E9FB;
+    --exito: #2E7D4F;
+    --error: #C0392B;
+    --error-suave: #FBEAE8;
+    /* colores de tokens */
+    --t-reservada: #7A3FC4;
+    --t-ident: #17212B;
+    --t-numero: #0F7C8A;
+    --t-cadena: #A8641A;
+    --t-relacional: #C0392B;
+    --t-simbolo: #5A6876;
+    --mono: "IBM Plex Mono", ui-monospace, Consolas, monospace;
+    --sans: "IBM Plex Sans", system-ui, "Segoe UI", sans-serif;
+    --linea: 22px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --fondo: #10161D;
+      --superficie: #18212B;
+      --superficie-2: #1E2833;
+      --borde: #2C3946;
+      --tinta: #E4EAF0;
+      --tinta-suave: #8C9BAA;
+      --cobalto: #7D9BFF;
+      --cobalto-suave: #24305A;
+      --exito: #5CC48A;
+      --error: #FF7A6B;
+      --error-suave: #3A1F1E;
+      --t-reservada: #C49BFF;
+      --t-ident: #E4EAF0;
+      --t-numero: #5FD3E0;
+      --t-cadena: #F0B86A;
+      --t-relacional: #FF8C7E;
+      --t-simbolo: #8C9BAA;
+    }
+  }
+
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    background: var(--fondo);
+    color: var(--tinta);
+    font-family: var(--sans);
+    font-size: 15px;
+    display: grid;
+    grid-template-rows: auto 1fr auto;
+  }
+  button, select, input { font: inherit; color: inherit; }
+  :focus-visible { outline: 2px solid var(--cobalto); outline-offset: 2px; }
+
+  /* ---------- barra superior ---------- */
+  header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 18px;
+    background: var(--superficie);
+    border-bottom: 1px solid var(--borde);
+    flex-wrap: wrap;
+  }
+  .marca {
+    font-family: var(--mono);
+    font-weight: 600;
+    font-size: 22px;
+    letter-spacing: -0.5px;
+    display: flex;
+    align-items: baseline;
+    gap: 2px;
+  }
+  .marca .cursor {
+    display: inline-block;
+    width: 10px; height: 20px;
+    background: var(--cobalto);
+    transform: translateY(3px);
+    animation: parpadeo 1.1s steps(1) infinite;
+  }
+  @keyframes parpadeo { 50% { opacity: 0; } }
+  @media (prefers-reduced-motion: reduce) { .marca .cursor { animation: none; } }
+
+  .archivo {
+    display: flex; align-items: center;
+    border: 1px solid var(--borde);
+    border-radius: 6px;
+    background: var(--superficie-2);
+    padding: 0 10px;
+  }
+  .archivo input {
+    border: none; background: transparent;
+    font-family: var(--mono); font-size: 14px;
+    width: 150px; padding: 6px 0; line-height: 1.4;
+  }
+  .archivo input:focus { outline: none; }
+  .archivo span { font-family: var(--mono); font-size: 14px; color: var(--tinta-suave); }
+  .espacio { flex: 1; }
+
+  .boton {
+    border: 1px solid var(--borde);
+    background: var(--superficie);
+    border-radius: 6px;
+    padding: 7px 14px;
+    cursor: pointer;
+  }
+  .boton:hover { background: var(--superficie-2); }
+  select.boton { padding-right: 8px; }
+  .ejecutar {
+    background: var(--cobalto);
+    border-color: var(--cobalto);
+    color: #fff;
+    font-weight: 600;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .ejecutar:hover { background: var(--cobalto); filter: brightness(1.08); }
+  .ejecutar:disabled { opacity: .6; cursor: progress; }
+  .ejecutar kbd {
+    font-family: var(--mono); font-size: 11px;
+    background: rgba(255,255,255,.18);
+    border-radius: 4px; padding: 1px 5px;
+  }
+  @media (prefers-color-scheme: dark) { .ejecutar { color: #0E1420; } .ejecutar kbd { background: rgba(0,0,0,.15); } }
+
+  /* ---------- área principal ---------- */
+  main {
+    display: grid;
+    grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+    gap: 14px;
+    padding: 14px;
+    min-height: 0;
+  }
+  @media (max-width: 860px) {
+    main { grid-template-columns: 1fr; grid-template-rows: minmax(320px, 1fr) minmax(320px, 1fr); }
+  }
+  .panel {
+    background: var(--superficie);
+    border: 1px solid var(--borde);
+    border-radius: 8px;
+    display: flex; flex-direction: column;
+    min-height: 0; overflow: hidden;
+  }
+  .panel-titulo {
+    display: flex; align-items: center; gap: 8px;
+    padding: 0 14px;
+    height: 42px;
+    border-bottom: 1px solid var(--borde);
+    font-size: 14px; color: var(--tinta-suave);
+    flex-shrink: 0;
+  }
+
+  /* ---------- editor ---------- */
+  .editor {
+    flex: 1;
+    display: flex;
+    min-height: 0;
+    overflow: auto;
+    font-family: var(--mono);
+    font-size: 14px;
+    line-height: var(--linea);
+  }
+  .gutter {
+    padding: 12px 10px 12px 14px;
+    text-align: right;
+    color: var(--tinta-suave);
+    opacity: .6;
+    user-select: none;
+    background: var(--superficie-2);
+    border-right: 1px solid var(--borde);
+    min-width: 48px;
+    white-space: pre;
+    position: sticky; left: 0;
+    height: max-content; min-height: 100%;
+  }
+  .gutter .activa { color: var(--cobalto); opacity: 1; font-weight: 600; }
+  .lienzo { position: relative; flex: 1; min-width: max-content; }
+  .lienzo pre, .lienzo textarea {
+    margin: 0;
+    padding: 12px 16px;
+    font: inherit;
+    line-height: inherit;
+    tab-size: 4;
+    white-space: pre;
+    border: none;
+  }
+  .lienzo pre {
+    pointer-events: none;
+    min-height: 100%;
+  }
+  .lienzo textarea {
+    position: absolute; inset: 0;
+    width: 100%; height: 100%;
+    resize: none;
+    background: transparent;
+    color: transparent;
+    caret-color: var(--tinta);
+    overflow: hidden;
+    outline: none;
+  }
+  .lienzo textarea::selection { background: var(--cobalto-suave); color: transparent; }
+
+  .h-res { color: var(--t-reservada); font-weight: 600; }
+  .h-num { color: var(--t-numero); }
+  .h-str { color: var(--t-cadena); }
+  .h-rel { color: var(--t-relacional); }
+  .h-sim { color: var(--t-simbolo); }
+  .h-fn  { color: var(--cobalto); }
+
+  /* ---------- pestañas de resultados ---------- */
+  .pestanas { display: flex; height: 42px; border-bottom: 1px solid var(--borde); flex-shrink: 0; }
+  .pestana {
+    border: none; background: transparent;
+    padding: 0 16px;
+    cursor: pointer;
+    color: var(--tinta-suave);
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .pestana[aria-selected="true"] { color: var(--tinta); border-bottom-color: var(--cobalto); font-weight: 600; }
+  .contador {
+    font-family: var(--mono); font-size: 11px;
+    background: var(--superficie-2);
+    border: 1px solid var(--borde);
+    border-radius: 10px; padding: 0 6px;
+  }
+  .vista { flex: 1; overflow: auto; padding: 16px; min-height: 0; }
+  .vista[hidden] { display: none; }
+
+  .vacio { color: var(--tinta-suave); line-height: 1.6; max-width: 46ch; }
+  .vacio kbd {
+    font-family: var(--mono); font-size: 12px;
+    border: 1px solid var(--borde); border-bottom-width: 2px;
+    border-radius: 4px; padding: 0 5px;
+    background: var(--superficie-2);
+  }
+
+  /* consola */
+  .consola {
+    font-family: var(--mono); font-size: 14px;
+    line-height: 1.6;
+    white-space: pre-wrap; word-break: break-word;
+    margin: 0;
+  }
+  .consola .prompt { color: var(--tinta-suave); }
+  .fallo {
+    border-left: 3px solid var(--error);
+    background: var(--error-suave);
+    padding: 10px 14px;
+    border-radius: 0 6px 6px 0;
+    margin-top: 12px;
+  }
+  .fallo strong { color: var(--error); display: block; margin-bottom: 4px; }
+  .fallo code { font-family: var(--mono); font-size: 13.5px; }
+  .ok { color: var(--exito); font-size: 13px; margin-top: 14px; }
+
+  /* tokens como cinta */
+  .leyenda { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 12.5px; color: var(--tinta-suave); margin-bottom: 14px; }
+  .leyenda span::before {
+    content: ""; display: inline-block; width: 9px; height: 9px;
+    border-radius: 2px; margin-right: 6px; background: var(--c);
+  }
+  .cinta { display: flex; flex-wrap: wrap; gap: 0; border-left: 1px solid var(--borde); }
+  .celda {
+    border: 1px solid var(--borde);
+    border-left: none;
+    margin-bottom: 8px;
+    min-width: 52px;
+    padding: 6px 8px 5px;
+    display: flex; flex-direction: column; align-items: center;
+    background: var(--superficie);
+    border-top: 3px solid var(--c);
+    cursor: default;
+  }
+  .celda:hover { background: var(--superficie-2); }
+  .celda .lexema { font-family: var(--mono); font-size: 14px; color: var(--c); font-weight: 500; white-space: pre; }
+  .celda .tipo { font-size: 10.5px; color: var(--tinta-suave); margin-top: 2px; white-space: nowrap; }
+  .celda .idx { font-family: var(--mono); font-size: 9.5px; color: var(--tinta-suave); opacity: .7; align-self: flex-start; }
+
+  /* tabla de variables */
+  table { border-collapse: collapse; width: 100%; font-size: 14px; }
+  th { text-align: left; font-weight: 600; color: var(--tinta-suave); font-size: 13px; padding: 6px 10px; border-bottom: 1px solid var(--borde); }
+  td { padding: 8px 10px; border-bottom: 1px solid var(--borde); font-family: var(--mono); vertical-align: top; }
+  td.tipo-v { font-family: var(--sans); color: var(--tinta-suave); font-size: 13px; }
+  .funciones { margin-top: 18px; font-size: 14px; color: var(--tinta-suave); }
+  .funciones code { font-family: var(--mono); color: var(--cobalto); margin-right: 10px; }
+
+  /* ---------- barra de estado ---------- */
+  footer {
+    display: flex; gap: 18px; align-items: center;
+    padding: 6px 18px;
+    font-size: 12.5px; color: var(--tinta-suave);
+    background: var(--superficie);
+    border-top: 1px solid var(--borde);
+  }
+  .punto { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--tinta-suave); margin-right: 6px; }
+  .punto.on { background: var(--exito); }
+  .punto.off { background: var(--error); }
+  footer .derecha { margin-left: auto; font-family: var(--mono); }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="marca" aria-label="BIP">bip<span class="cursor" aria-hidden="true"></span></div>
+
+  <label class="archivo" title="Nombre del archivo">
+    <input id="nombre" value="programa" spellcheck="false" aria-label="Nombre del archivo"><span>.bip</span>
+  </label>
+
+  <div class="espacio"></div>
+
+  <select id="ejemplos" class="boton" aria-label="Cargar un ejemplo">
+    <option value="">Cargar ejemplo…</option>
+  </select>
+  <button class="boton" id="btnAbrir">Abrir .bip</button>
+  <button class="boton" id="btnGuardar">Guardar</button>
+  <input type="file" id="archivo" accept=".bip,.txt" hidden>
+  <button class="boton ejecutar" id="btnEjecutar">Ejecutar <kbd>Ctrl ↵</kbd></button>
+</header>
+
+<main>
+  <section class="panel" aria-label="Editor de código">
+    <div class="panel-titulo">Código fuente</div>
+    <div class="editor" id="editor">
+      <div class="gutter" id="gutter" aria-hidden="true">1</div>
+      <div class="lienzo">
+        <pre id="resaltado" aria-hidden="true"></pre>
+        <textarea id="codigo" spellcheck="false" autocapitalize="off" autocomplete="off" aria-label="Código BIP"></textarea>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel" aria-label="Resultados">
+    <div class="pestanas" role="tablist">
+      <button class="pestana" role="tab" aria-selected="true" data-vista="salida">Salida</button>
+      <button class="pestana" role="tab" aria-selected="false" data-vista="tokens">Tokens <span class="contador" id="nTokens">0</span></button>
+      <button class="pestana" role="tab" aria-selected="false" data-vista="variables">Variables <span class="contador" id="nVars">0</span></button>
+    </div>
+
+    <div class="vista" id="vista-salida" role="tabpanel">
+      <p class="vacio">Escribe tu programa a la izquierda y presiona <kbd>Ctrl</kbd> + <kbd>Enter</kbd> para ejecutarlo. Aquí verás lo que imprima con <code>imprimir()</code> y los errores que encuentre el compilador.</p>
+    </div>
+    <div class="vista" id="vista-tokens" role="tabpanel" hidden>
+      <p class="vacio">Cuando ejecutes el programa, aquí aparecerá la cadena de tokens que produjo el analizador léxico.</p>
+    </div>
+    <div class="vista" id="vista-variables" role="tabpanel" hidden>
+      <p class="vacio">Aquí aparecerán las variables con el valor que tenían al terminar el programa.</p>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <span><span class="punto" id="puntoServidor"></span><span id="txtServidor">Conectando con el servidor…</span></span>
+  <span id="txtResultado"></span>
+  <span class="derecha" id="posicion">Ln 1, Col 1</span>
+</footer>
+
+<script>
+// Si la página la sirve FastAPI usamos el mismo origen; si se abre con doble clic, el puerto 8000.
+const API = location.protocol.startsWith("http") ? "" : "http://localhost:8000";
+
+const EJEMPLOS = {
+  "Hola BIP": `imprimir("Hola bip");
+x = 24 + 32;
+imprimir(x);`,
+
+  "Condicionales": `edad = 20
+
+si (edad >= 18):
+    imprimir("Es mayor de edad")
+sino:
+    imprimir("Es menor de edad")`,
+
+  "Ciclos": `contador = 0
+mientras (contador < 3):
+    imprimir("mientras: " + contador)
+    contador = contador + 1
+
+para i en range(5):
+    imprimir("para: " + i)`,
+
+  "Métodos": `metodo factorial(n):
+    si (n <= 1):
+        retornar 1
+    retornar n * factorial(n - 1)
+
+metodo calcular(a, b):
+    retornar (a + b) * 2 / 4 % 3
+
+imprimir(factorial(5))
+resultado = calcular(2, 3)
+imprimir("calcular(2, 3) = " + resultado)`,
+
+  "Listas": `numeros = [10, 20, 30]
+suma = 0
+para n en numeros:
+    suma = suma + n
+imprimir("Lista: " + numeros)
+imprimir("Suma: " + suma)`,
+
+  "Con un error": `x = 10
+imprimir(x + y)`
+};
+
+// Colores por categoría de token (se completa con /reglas)
+let reglas = {
+  palabras_reservadas: { si:"", sino:"", mientras:"", imprimir:"", metodo:"", retornar:"", clase:"", importar:"", para:"", en:"" },
+  operadores_relacionales: { "==":"", "!=":"", ">=":"", "<=":"", ">":"", "<":"" },
+  simbolos: {}
+};
+
+const $ = id => document.getElementById(id);
+const codigo = $("codigo"), resaltado = $("resaltado"), gutter = $("gutter");
+
+/* ---------------- resaltado de sintaxis ---------------- */
+const escapar = s => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+function resaltar(texto) {
+  const reservadas = new Set(Object.keys(reglas.palabras_reservadas));
+  const relacionales = Object.keys(reglas.operadores_relacionales).sort((a, b) => b.length - a.length);
+  let html = "", i = 0;
+  while (i < texto.length) {
+    const c = texto[i];
+    if (c === '"') {
+      let j = texto.indexOf('"', i + 1);
+      j = j === -1 ? texto.length : j + 1;
+      html += `<span class="h-str">${escapar(texto.slice(i, j))}</span>`; i = j; continue;
+    }
+    if (/[0-9]/.test(c)) {
+      const m = texto.slice(i).match(/^\d+(\.\d+)?/)[0];
+      html += `<span class="h-num">${m}</span>`; i += m.length; continue;
+    }
+    if (/[A-Za-z_áéíóúñÁÉÍÓÚÑ]/.test(c)) {
+      const m = texto.slice(i).match(/^[\wáéíóúñÁÉÍÓÚÑ]+/)[0];
+      const sigue = texto.slice(i + m.length).match(/^\s*\(/);
+      if (reservadas.has(m)) html += `<span class="h-res">${m}</span>`;
+      else if (sigue) html += `<span class="h-fn">${m}</span>`;
+      else html += escapar(m);
+      i += m.length; continue;
+    }
+    const rel = relacionales.find(op => texto.startsWith(op, i));
+    if (rel) { html += `<span class="h-rel">${escapar(rel)}</span>`; i += rel.length; continue; }
+    if ("+-*/%=.,(){}[];:".includes(c)) { html += `<span class="h-sim">${c}</span>`; i++; continue; }
+    html += escapar(c); i++;
+  }
+  return html + "\n";
+}
+
+function actualizarEditor() {
+  resaltado.innerHTML = resaltar(codigo.value);
+  actualizarGutter();
+}
+
+function actualizarGutter() {
+  const total = codigo.value.split("\n").length;
+  const actual = codigo.value.slice(0, codigo.selectionStart).split("\n").length;
+  let html = "";
+  for (let n = 1; n <= total; n++) html += n === actual ? `<span class="activa">${n}</span>\n` : n + "\n";
+  gutter.innerHTML = html;
+  const col = codigo.selectionStart - codigo.value.lastIndexOf("\n", codigo.selectionStart - 1);
+  $("posicion").textContent = `Ln ${actual}, Col ${col}`;
+}
+
+/* ---------------- teclado: indentación al estilo Python ---------------- */
+function insertar(texto) {
+  // execCommand conserva el historial de Ctrl+Z
+  if (!document.execCommand("insertText", false, texto)) {
+    const s = codigo.selectionStart;
+    codigo.setRangeText(texto, s, codigo.selectionEnd, "end");
+  }
+  actualizarEditor();
+}
+
+codigo.addEventListener("keydown", e => {
+  if ((e.ctrlKey || e.metaKey) && e.key === "Enter") { e.preventDefault(); ejecutar(); return; }
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") { e.preventDefault(); guardar(); return; }
+
+  if (e.key === "Tab") {
+    e.preventDefault();
+    const inicioLinea = codigo.value.lastIndexOf("\n", codigo.selectionStart - 1) + 1;
+    if (e.shiftKey) {
+      const quitar = codigo.value.slice(inicioLinea).match(/^ {1,4}/);
+      if (quitar) {
+        codigo.setSelectionRange(inicioLinea, inicioLinea + quitar[0].length);
+        insertar("");
+      }
+    } else {
+      insertar("    ");
+    }
+    return;
+  }
+
+  if (e.key === "Enter") {
+    e.preventDefault();
+    const antes = codigo.value.slice(0, codigo.selectionStart);
+    const linea = antes.slice(antes.lastIndexOf("\n") + 1);
+    let sangria = linea.match(/^\s*/)[0];
+    if (linea.trimEnd().endsWith(":")) sangria += "    ";
+    insertar("\n" + sangria);
+  }
+});
+codigo.addEventListener("input", actualizarEditor);
+["click", "keyup", "select"].forEach(ev => codigo.addEventListener(ev, actualizarGutter));
+
+/* ---------------- pestañas ---------------- */
+function mostrarVista(nombre) {
+  document.querySelectorAll(".pestana").forEach(p => p.setAttribute("aria-selected", p.dataset.vista === nombre));
+  document.querySelectorAll(".vista").forEach(v => v.hidden = v.id !== "vista-" + nombre);
+}
+document.querySelectorAll(".pestana").forEach(p => p.addEventListener("click", () => mostrarVista(p.dataset.vista)));
+
+/* ---------------- tokens ---------------- */
+function categoria(tipo) {
+  if (tipo.startsWith("Palabra reservada") || tipo.startsWith("Condicional")) return ["Palabra reservada", "--t-reservada"];
+  if (tipo === "IDENTIFICADOR") return ["Identificador", "--t-ident"];
+  if (tipo.startsWith("NUMERO")) return ["Número", "--t-numero"];
+  if (tipo.startsWith("Cadena")) return ["Cadena", "--t-cadena"];
+  if (Object.values(reglas.operadores_relacionales).includes(tipo)) return ["Operador relacional", "--t-relacional"];
+  return ["Símbolo", "--t-simbolo"];
+}
+
+function pintarTokens(tokens) {
+  $("nTokens").textContent = tokens.length;
+  const vista = $("vista-tokens");
+  if (!tokens.length) { vista.innerHTML = `<p class="vacio">El analizador léxico no produjo tokens.</p>`; return; }
+
+  const usadas = new Map();
+  const celdas = tokens.map((t, i) => {
+    const [nombre, color] = categoria(t.tipo);
+    usadas.set(nombre, color);
+    return `<div class="celda" style="--c: var(${color})" title="${escapar(t.tipo)}">
+      <span class="idx">${i}</span>
+      <span class="lexema">${escapar(t.valor)}</span>
+      <span class="tipo">${escapar(t.tipo)}</span>
+    </div>`;
+  }).join("");
+  const leyenda = [...usadas].map(([n, c]) => `<span style="--c: var(${c})">${n}</span>`).join("");
+  vista.innerHTML = `<div class="leyenda">${leyenda}</div><div class="cinta">${celdas}</div>`;
+}
+
+/* ---------------- variables ---------------- */
+function tipoDe(v) {
+  if (Array.isArray(v)) return "lista";
+  if (typeof v === "number") return Number.isInteger(v) ? "número" : "decimal";
+  if (typeof v === "string") return "cadena";
+  if (typeof v === "boolean") return "booleano";
+  if (v === null) return "vacío";
+  return typeof v;
+}
+const mostrarValor = v => typeof v === "string" ? `"${v}"` : JSON.stringify(v);
+
+function pintarVariables(vars = {}, funciones = []) {
+  const entradas = Object.entries(vars);
+  $("nVars").textContent = entradas.length;
+  const vista = $("vista-variables");
+  let html = entradas.length
+    ? `<table><thead><tr><th>Nombre</th><th>Valor</th><th>Tipo</th></tr></thead><tbody>${
+        entradas.map(([k, v]) => `<tr><td>${escapar(k)}</td><td>${escapar(mostrarValor(v))}</td><td class="tipo-v">${tipoDe(v)}</td></tr>`).join("")
+      }</tbody></table>`
+    : `<p class="vacio">El programa terminó sin variables definidas.</p>`;
+  if (funciones.length) html += `<p class="funciones">Métodos definidos: ${funciones.map(f => `<code>${escapar(f)}()</code>`).join("")}</p>`;
+  vista.innerHTML = html;
+}
+
+/* ---------------- ejecutar ---------------- */
+async function ejecutar() {
+  const btn = $("btnEjecutar");
+  btn.disabled = true;
+  const inicio = performance.now();
+  try {
+    const r = await fetch(API + "/iniciar", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ codigo: codigo.value })
+    });
+    const data = await r.json();
+    const ms = Math.round(performance.now() - inicio);
+    servidorEstado(true);
+
+    let html = "";
+    if (data.salida_consola) html += `<pre class="consola">${escapar(data.salida_consola)}</pre>`;
+
+    if (data.exito) {
+      if (!data.salida_consola) html += `<p class="vacio">El programa se ejecutó sin imprimir nada. Revisa la pestaña Variables para ver el resultado.</p>`;
+      html += `<p class="ok">Programa ejecutado correctamente.</p>`;
+      $("txtResultado").textContent = `Ejecutado en ${ms} ms`;
+      pintarVariables(data.variables_entorno, data.funciones);
+    } else {
+      const nombres = { "léxico": "Error léxico", "sintáctico": "Error sintáctico", "ejecución": "Error de ejecución" };
+      const etapa = nombres[data.etapa] || "Error";
+      html += `<div class="fallo"><strong>${escapar(etapa)}</strong><code>${escapar(data.error || "Error desconocido")}</code></div>`;
+      $("txtResultado").textContent = etapa;
+      pintarVariables({}, []);
+    }
+    $("vista-salida").innerHTML = html;
+    pintarTokens(data.tokens || []);
+    mostrarVista("salida");
+  } catch (err) {
+    servidorEstado(false);
+    $("vista-salida").innerHTML = `<div class="fallo"><strong>No hay conexión con el servidor</strong>
+      <code>Inícialo con: uvicorn servidor:app --reload</code></div>`;
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+/* ---------------- archivos ---------------- */
+function guardar() {
+  const nombre = ($("nombre").value.trim() || "programa").replace(/\.bip$/i, "");
+  const blob = new Blob([codigo.value], { type: "text/plain" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = nombre + ".bip";
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+function cargar(texto) {
+  codigo.value = texto;
+  actualizarEditor();
+  codigo.focus();
+}
+
+$("btnGuardar").onclick = guardar;
+$("btnEjecutar").onclick = ejecutar;
+$("btnAbrir").onclick = () => $("archivo").click();
+$("archivo").onchange = async e => {
+  const f = e.target.files[0];
+  if (!f) return;
+  $("nombre").value = f.name.replace(/\.(bip|txt)$/i, "");
+  cargar(await f.text());
+  e.target.value = "";
+};
+
+const sel = $("ejemplos");
+Object.keys(EJEMPLOS).forEach(n => sel.add(new Option(n, n)));
+sel.onchange = () => {
+  if (!sel.value) return;
+  $("nombre").value = sel.value.toLowerCase().replace(/\s+/g, "_").normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  cargar(EJEMPLOS[sel.value]);
+  sel.value = "";
+};
+
+/* ---------------- servidor ---------------- */
+function servidorEstado(ok) {
+  $("puntoServidor").className = "punto " + (ok ? "on" : "off");
+  $("txtServidor").textContent = ok ? "Servidor conectado" : "Servidor desconectado";
+}
+
+async function iniciar() {
+  try {
+    const r = await fetch(API + "/reglas");
+    if (r.ok) reglas = await r.json();
+    servidorEstado(true);
+  } catch { servidorEstado(false); }
+  cargar(EJEMPLOS["Hola BIP"]);
+}
+iniciar();
+</script>
+</body>
+</html>
