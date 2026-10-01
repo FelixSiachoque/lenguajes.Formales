@@ -1,0 +1,36 @@
+importar util
+
+metodo calcular(a, b):
+    resultado = (a + b) * 2 / 4 % 3
+    retornar resultado
+
+clase Persona:
+    metodo saludo():
+        retornar "Hola"
+
+valor = calcular(2, 3)
+si (valor == 2):
+    imprimir("igual")
+sino:
+    imprimir("diferente")
+
+si (valor >= 1):
+    imprimir(valor)
+si (valor <= 3):
+    imprimir(valor)
+si (valor > 0):
+    imprimir(valor)
+si (valor < 10):
+    imprimir(valor)
+
+contador = 0
+mientras (contador != 3):
+    contador = contador + 1
+
+para i en range(3):
+    imprimir(i)
+
+lista = [1, 2, 3]
+imprimir("Lista: " + lista)
+imprimir("fin")
+fin

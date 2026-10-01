@@ -1,0 +1,40 @@
+{
+  "palabras_reservadas": {
+    "si": "Condicional if",
+    "sino": "Condicional else",
+    "mientras": "Condicional while",
+    "imprimir": "Palabra reservada print",
+    "metodo": "Palabra reservada def",
+    "retornar": "Palabra reservada return",
+    "clase": "Palabra reservada class",
+    "importar": "Palabra reservada import",
+    "para": "Palabra reservada for",
+    "en": "Palabra reservada in"
+  },
+  "operadores_relacionales": {
+    "==": "IGUAL_IGUAL",
+    "!=": "DIFERENTE",
+    ">=": "MAYOR_IGUAL",
+    "<=": "MENOR_IGUAL",
+    ">": "MAYOR",
+    "<": "MENOR"
+  },
+  "simbolos": {
+    "+": "SUMA",
+    "-": "RESTA",
+    "*": "MULTIPLICACION",
+    "/": "DIVISION",
+    "%": "MODULO",
+    "=": "ASIGNACION",
+    ".": "PUNTO",
+    ",": "COMA",
+    "(": "PARENTESIS_IZQUIERDO",
+    ")": "PARENTESIS_DERECHO",
+    "{": "LLAVE_IZQUIERDA",
+    "}": "LLAVE_DERECHA",
+    "[": "CIZQ",
+    "]": "CDER",
+    ";": "PUNTO_Y_COMA",
+    ":": "DOS_PUNTOS"
+  }
+}
